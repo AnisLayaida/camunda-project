@@ -1,11 +1,10 @@
 #!/bin/bash
 set -e
 
-yum update -y
+echo "Creating app directory"
+mkdir -p /opt/camunda
+chmod 755 /opt/camunda
 
-if ! command -v docker &> /dev/null; then
-  amazon-linux-extras install docker -y
-fi
-
+echo "Ensuring Docker is running"
 systemctl start docker
 systemctl enable docker
