@@ -29,3 +29,6 @@ phases:
     commands:
       - echo "Build completed on $(date)"
       - echo "Ready for deployment to EC2"
+artifacts:
+  files:
+    - '**/*'
