@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
 
-cd /opt/camunda
+APP_DIR=$(pwd)
+
+echo "Starting containers from $APP_DIR"
 docker compose up -d
