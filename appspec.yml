@@ -6,11 +6,6 @@ files:
     destination: /opt/camunda
 
 hooks:
-  ApplicationStop:
-    - location: scripts/stop.sh
-      timeout: 60
-      runas: root
-
   BeforeInstall:
     - location: scripts/install.sh
       timeout: 300
@@ -18,5 +13,10 @@ hooks:
 
   ApplicationStart:
     - location: scripts/start.sh
+      timeout: 300
+      runas: root
+
+  ApplicationStop:
+    - location: scripts/stop.sh
       timeout: 300
       runas: root
