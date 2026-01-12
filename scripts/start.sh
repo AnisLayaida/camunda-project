@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-APP_DIR=$(pwd)
+cd "$(dirname "$0")/.."
 
-echo "Starting containers from $APP_DIR"
 docker compose up -d

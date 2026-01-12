@@ -1,4 +1,6 @@
 #!/bin/bash
 set -e
 
-echo "Install phase complete"
+cd "$(dirname "$0")/.."
+
+docker compose down || true
