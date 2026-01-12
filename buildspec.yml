@@ -6,6 +6,7 @@ env:
     CODEARTIFACT_DOMAIN: anis-camunda-project
     CODEARTIFACT_REPO: instance-repository
     ACCOUNT_ID: 201786699573
+
 phases:
   install:
     runtime-versions:
@@ -14,10 +15,12 @@ phases:
       - echo "Installing system dependencies..."
       - yum install -y docker
       - pip install --upgrade pip
+
   pre_build:
     commands:
       - echo "Logging in to AWS CodeArtifact..."
-      - export CODEARTIFACT_AUTH_TOKEN=`aws codeartifact get-authorization-token --domain anis-camunda-project --domain-owner 201786699573 --region eu-west-2 --query authorizationToken --output text`
+      - export CODEARTIFACT_AUTH_TOKEN=$(aws codeartifact get-authorization-token --domain $CODEARTIFACT_DOMAIN --domain-owner $ACCOUNT_ID --region $AWS_REGION --query authorizationToken --output text)
+
   build:
     commands:
       - echo "Build started on $(date)"
@@ -25,10 +28,13 @@ phases:
       - pip install -r workers/requirements.txt || true
       - echo "Building Docker images..."
       - docker compose build
+
   post_build:
     commands:
       - echo "Build completed on $(date)"
       - echo "Ready for deployment to EC2"
+
 artifacts:
   files:
     - '**/*'
+  name: anis-codeartifact-file
