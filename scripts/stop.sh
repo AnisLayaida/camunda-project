@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/.."
+APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$APP_ROOT"
 
 docker compose down || true

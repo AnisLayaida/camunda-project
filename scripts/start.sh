@@ -1,10 +1,13 @@
 #!/bin/bash
 set -e
 
-cd "$(dirname "$0")/.."
+APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$APP_ROOT"
 
-if docker compose version >/dev/null 2>&1; then
-  docker compose up -d
-else
-  docker-compose up -d
-fi
+echo "Starting containers from $APP_ROOT"
+
+docker compose down || true
+
+docker compose up -d || true
+
+echo "Docker compose started"
