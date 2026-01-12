@@ -1,13 +1,9 @@
 #!/bin/bash
 set -e
 
-APP_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$APP_ROOT"
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-echo "Starting containers from $APP_ROOT"
+echo "Starting containers from $APP_DIR"
+cd "$APP_DIR"
 
-docker compose down || true
-
-docker compose up -d || true
-
-echo "Docker compose started"
+docker compose up -d
