@@ -8,7 +8,7 @@ services:
     restart: unless-stopped
 
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://camunda-instance-database-instance-1.cleogicauczi.eu-west-2.rds.amazonaws.com:5432/camunda
+      SPRING_DATASOURCE_URL: jdbc:postgresql://camunda-instance-database-instance-1.c1eogicauczi.eu-west-2.rds.amazonaws.com:5432/camunda
       SPRING_DATASOURCE_USERNAME: camunda_user
       SPRING_DATASOURCE_PASSWORD: camunda-project-123
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
