@@ -13,7 +13,6 @@ version: "3.9"
 #   CAMUNDA_ADMIN_USER=admin
 #   CAMUNDA_ADMIN_PASSWORD=your-admin-password
 #
-# NEVER commit .env to version control!
 # =============================================================================
 
 services:
