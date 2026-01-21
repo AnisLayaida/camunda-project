@@ -1,6 +1,10 @@
 version: 0.0
 os: linux
 
+files:
+  - source: /
+    destination: /home/ec2-user/camunda-project
+
 hooks:
   ApplicationStop:
     - location: scripts/stop.sh
