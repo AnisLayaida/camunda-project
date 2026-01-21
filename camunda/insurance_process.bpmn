@@ -92,11 +92,11 @@
     <bpmn:sequenceFlow id="Flow_1dwry0d" sourceRef="Event_02qtdl6" targetRef="document_request_process" />
     <bpmn:sequenceFlow id="Flow_0rqvoq5" sourceRef="Event_0kxje99" targetRef="risk_rating_dmn" />
     <bpmn:sequenceFlow id="Flow_133t1wd" sourceRef="risk_rating_dmn" targetRef="Gateway_1q4fgbf" />
-    <bpmn:serviceTask id="Activity_1bnitip" name="Message sent to policyholder">
+    <bpmn:serviceTask id="Activity_1bnitip" name="Message sent to policyholder" camunda:type="external" camunda:topic="send-approval-email">
       <bpmn:incoming>Flow_0jbzitx</bpmn:incoming>
       <bpmn:outgoing>Flow_1kcjudo</bpmn:outgoing>
     </bpmn:serviceTask>
-    <bpmn:serviceTask id="Activity_1gz7vk2" name="Message sent to policyholder">
+    <bpmn:serviceTask id="Activity_1gz7vk2" name="Message sent to policyholder" camunda:type="external" camunda:topic="send-rejection-email">
       <bpmn:incoming>Flow_1p86iiy</bpmn:incoming>
       <bpmn:outgoing>Flow_1ns6heq</bpmn:outgoing>
     </bpmn:serviceTask>
@@ -105,7 +105,7 @@
       <bpmn:incoming>Flow_012lagy</bpmn:incoming>
       <bpmn:outgoing>Flow_1p86iiy</bpmn:outgoing>
     </bpmn:task>
-    <bpmn:serviceTask id="Activity_0ehak7s" name="Inform Manager">
+    <bpmn:serviceTask id="Activity_0ehak7s" name="Inform Manager" camunda:type="external" camunda:topic="inform-manager">
       <bpmn:incoming>Flow_0fybl6b</bpmn:incoming>
       <bpmn:outgoing>Flow_1u7t079</bpmn:outgoing>
     </bpmn:serviceTask>
