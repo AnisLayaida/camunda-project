@@ -4,10 +4,6 @@
     <bpmn:startEvent id="Event_1qqgwqc">
       <bpmn:outgoing>Flow_17d82ei</bpmn:outgoing>
     </bpmn:startEvent>
-    <bpmn:task id="Activity_0atx1cq" name="Request for more documents">
-      <bpmn:incoming>Flow_17d82ei</bpmn:incoming>
-      <bpmn:outgoing>Flow_0jra91d</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:userTask id="Activity_1kmd07x" name="User makes decision">
       <bpmn:incoming>Flow_03jt1ds</bpmn:incoming>
       <bpmn:outgoing>Flow_0jx5hpc</bpmn:outgoing>
@@ -23,10 +19,6 @@
     <bpmn:endEvent id="Event_0u6axsg" name="Whole process ended">
       <bpmn:incoming>Flow_09ongwc</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:task id="Activity_1wlfzpq" name="Automatic Rejection">
-      <bpmn:incoming>Flow_0nek0l7</bpmn:incoming>
-      <bpmn:outgoing>Flow_09ongwc</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:sequenceFlow id="Flow_17d82ei" sourceRef="Event_1qqgwqc" targetRef="Activity_0atx1cq" />
     <bpmn:sequenceFlow id="Flow_0jra91d" sourceRef="Activity_0atx1cq" targetRef="Gateway_1p3pvfs" />
     <bpmn:sequenceFlow id="Flow_03jt1ds" name="Yes" sourceRef="Gateway_1p3pvfs" targetRef="Activity_1kmd07x">
@@ -37,15 +29,19 @@
       <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${recieved == "no"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_09ongwc" sourceRef="Activity_1wlfzpq" targetRef="Event_0u6axsg" />
+    <bpmn:serviceTask id="Activity_0atx1cq" name="Request for more documents">
+      <bpmn:incoming>Flow_17d82ei</bpmn:incoming>
+      <bpmn:outgoing>Flow_0jra91d</bpmn:outgoing>
+    </bpmn:serviceTask>
+    <bpmn:userTask id="Activity_1wlfzpq" name="Rejection">
+      <bpmn:incoming>Flow_0nek0l7</bpmn:incoming>
+      <bpmn:outgoing>Flow_09ongwc</bpmn:outgoing>
+    </bpmn:userTask>
   </bpmn:process>
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
     <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="document_request_process">
       <bpmndi:BPMNShape id="BPMNShape_16hduhz" bpmnElement="Event_1qqgwqc">
         <dc:Bounds x="152" y="122" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BPMNShape_0ygylv8" bpmnElement="Activity_0atx1cq">
-        <dc:Bounds x="290" y="100" width="100" height="80" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1v9j4cp_di" bpmnElement="Activity_1kmd07x">
         <dc:Bounds x="630" y="100" width="100" height="80" />
@@ -69,7 +65,10 @@
           <dc:Bounds x="814" y="275" width="73" height="27" />
         </bpmndi:BPMNLabel>
       </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="Activity_1y01lxo_di" bpmnElement="Activity_1wlfzpq">
+      <bpmndi:BPMNShape id="Activity_04ptk0d_di" bpmnElement="Activity_0atx1cq">
+        <dc:Bounds x="290" y="100" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_17dhxqa_di" bpmnElement="Activity_1wlfzpq">
         <dc:Bounds x="630" y="210" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNEdge id="Flow_17d82ei_di" bpmnElement="Flow_17d82ei">

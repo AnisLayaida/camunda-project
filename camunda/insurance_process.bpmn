@@ -14,10 +14,6 @@
     <bpmn:endEvent id="Event_11v4h2s">
       <bpmn:incoming>Flow_1u7t079</bpmn:incoming>
     </bpmn:endEvent>
-    <bpmn:task id="Activity_0ehak7s" name="Inform Manager">
-      <bpmn:incoming>Flow_0fybl6b</bpmn:incoming>
-      <bpmn:outgoing>Flow_1u7t079</bpmn:outgoing>
-    </bpmn:task>
     <bpmn:userTask id="Activity_1u566xw" name="Checks Application">
       <bpmn:extensionElements>
         <camunda:formData>
@@ -109,6 +105,10 @@
       <bpmn:incoming>Flow_012lagy</bpmn:incoming>
       <bpmn:outgoing>Flow_1p86iiy</bpmn:outgoing>
     </bpmn:task>
+    <bpmn:serviceTask id="Activity_0ehak7s" name="Inform Manager">
+      <bpmn:incoming>Flow_0fybl6b</bpmn:incoming>
+      <bpmn:outgoing>Flow_1u7t079</bpmn:outgoing>
+    </bpmn:serviceTask>
   </bpmn:process>
   <bpmn:message id="Message_0rr8thj" name="PolicyApprovedMessage" />
   <bpmndi:BPMNDiagram id="BPMNDiagram_1">
@@ -124,10 +124,6 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BPMNShape_1t4rmgc" bpmnElement="Event_11v4h2s">
         <dc:Bounds x="792" y="172" width="36" height="36" />
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BPMNShape_03bmp7l" bpmnElement="Activity_0ehak7s">
-        <dc:Bounds x="590" y="150" width="100" height="80" />
-        <bpmndi:BPMNLabel />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BPMNShape_1ogdws8" bpmnElement="Activity_1u566xw">
         <dc:Bounds x="590" y="260" width="100" height="80" />
@@ -166,6 +162,9 @@
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_1y4pfc0_di" bpmnElement="Activity_09w6bed">
         <dc:Bounds x="890" y="510" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_08dmbnd_di" bpmnElement="Activity_0ehak7s">
+        <dc:Bounds x="590" y="150" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BPMNShape_1rv0zdl" bpmnElement="Event_02qtdl6">
         <dc:Bounds x="672" y="322" width="36" height="36" />
