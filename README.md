@@ -78,7 +78,6 @@ The architectural decisions in this project address specific enterprise requirem
 │  │              │    │   Analysts   │    │   Owners     │                      │
 │  └──────────────┘    └──────────────┘    └──────────────┘                      │
 │         │                   │                   │                              │
-│         │                   │                   │                              │
 │         ▼                   ▼                   ▼                              │
 │  ┌──────────────────────────────────────────────────────────────────┐          │
 │  │                     CAMUNDA MODELER                              │          │
@@ -97,7 +96,7 @@ The architectural decisions in this project address specific enterprise requirem
 │  ┌─────────────────────────────────┼─────────────────────────────────────────┐ │
 │  │                    EC2 SECURITY │ GROUP                                   │ │
 │  │  ┌──────────────────────────────┴──────────────────────────────────────┐  │ │
-│  │  │                        EC2 INSTANCE (t2.micro)                      │  │ │
+│  │  │                        EC2 INSTANCE                                 │  │ │
 │  │  │  ┌────────────────────────────────────────────────────────────────┐ │  │ │
 │  │  │  │                      DOCKER HOST                               │ │  │ │
 │  │  │  │  ┌─────────────────────────────────────────────────────────┐  │ │  │ │
@@ -107,51 +106,46 @@ The architectural decisions in this project address specific enterprise requirem
 │  │  │  │  │  │  Cockpit    │ │  Tasklist   │ │  Admin      │       │  │ │  │ │
 │  │  │  │  │  │  :8080/     │ │  :8080/     │ │  :8080/     │       │  │ │  │ │
 │  │  │  │  │  │  camunda/   │ │  camunda/   │ │  camunda/   │       │  │ │  │ │
-│  │ ┌──┼──┼──▶│  app/cockpit│ │  app/tasklist│ │  app/admin │       │  │ │  │ │
-│  │ │  │  │  │  └─────────────┘ └─────────────┘ └─────────────┘       │  │ │  │ │
-│  │ │  │  │  │                                                         │  │ │  │ │
-│  │ │  │  │  │  ┌─────────────────────────────────────────────────┐   │  │ │  │ │
-│  │ │  │  │  │  │              REST API (:8080)                   │   │  │ │  │ │
-│  │ │  │  │  │  │  /engine-rest/deployment/create                 │   │  │ │  │ │
-│  │ │  │  │  │  │  /engine-rest/process-definition                │   │  │ │  │ │
-│  │ │  │  │  │  │  /engine-rest/external-task/fetchAndLock        │   │  │ │  │ │
-│  │ │  │  │  │  └─────────────────────────────────────────────────┘   │  │ │  │ │
-│  │ │  │  │  └────────────────────────────┬──────────────────────────┘  │ │  │ │
-│  │ │  │  │                               │                             │ │  │ │
-│  │ │  │  │  ┌────────────────────────────┴────────────────────────┐   │ │  │ │
-│  │ │  │  │  │            PYTHON WORKERS CONTAINER                 │   │ │  │ │
-│  │ │  │  │  │  ┌──────────────────┐  ┌──────────────────┐        │   │ │  │ │
-│  │ │  │  │  │  │ worker_insurance │  │ worker_risk      │        │   │ │  │ │
-│  │ │  │  │  │  │ .py              │  │ .py              │        │   │ │  │ │
-│  │ │  │  │  │  └──────────────────┘  └──────────────────┘        │   │ │  │ │
-│  │ │  │  │  └─────────────────────────────────────────────────────┘   │ │  │ │
-│  │ │  │  └────────────────────────────────────────────────────────────┘ │  │ │
-│  │ │  └──────────────────────────────────┬──────────────────────────────┘  │ │
-│  │ │                                     │ JDBC                            │ │
-│  │ │                                     ▼                                 │ │
-│  │ │   ┌───────────────────────────────────────────────────────────────┐   │ │
-│  │ │   │                  AURORA SECURITY GROUP                        │   │ │
-│  │ │   │  ┌─────────────────────────────────────────────────────────┐  │   │ │
-│  │ │   │  │           AMAZON AURORA POSTGRESQL                      │  │   │ │
-│  │ │   │  │                                                         │  │   │ │
-│  │ │   │  │  Endpoint: camunda-instance-database-instance-1         │  │   │ │
-│  │ │   │  │            .c1eogicauczi.eu-west-2.rds.amazonaws.com    │  │   │ │
-│  │ │   │  │  Port: 5432                                             │  │   │ │
-│  │ │   │  │  Engine: Aurora PostgreSQL                              │  │   │ │
-│  │ │   │  │  Instance: db.t3.medium                                 │  │   │ │
-│  │ │   │  │  Publicly Accessible: NO                                │  │   │ │
-│  │ │   │  │                                                         │  │   │ │
-│  │ │   │  │  Tables: ACT_RE_*, ACT_RU_*, ACT_HI_*, ACT_GE_*         │  │   │ │
-│  │ │   │  └─────────────────────────────────────────────────────────┘  │   │ │
-│  │ │   └───────────────────────────────────────────────────────────────┘   │ │
-│  │ │                                                                       │ │
-│  │ │  Inbound: EC2 Security Group Only                                     │ │
-│  │ └───────────────────────────────────────────────────────────────────────┘ │
-│  │                                                                           │
-│  │  Inbound: Corporate IP Only (BT Network)                                  │
-│  └───────────────────────────────────────────────────────────────────────────┘
-│                                                                               │
-└───────────────────────────────────────────────────────────────────────────────┘
+│  │  │  │  │  │  app/cockpit│ │  app/tasklist│ │  app/admin │       │  │ │  │ │
+│  │  │  │  │  └─────────────┘ └─────────────┘ └─────────────┘       │  │ │  │ │
+│  │  │  │  │                                                         │  │ │  │ │
+│  │  │  │  │  ┌─────────────────────────────────────────────────┐   │  │ │  │ │
+│  │  │  │  │  │              REST API (:8080)                   │   │  │ │  │ │
+│  │  │  │  │  │  /engine-rest/deployment/create                 │   │  │ │  │ │
+│  │  │  │  │  │  /engine-rest/process-definition                │   │  │ │  │ │
+│  │  │  │  │  │  /engine-rest/external-task/fetchAndLock        │   │  │ │  │ │
+│  │  │  │  │  └─────────────────────────────────────────────────┘   │  │ │  │ │
+│  │  │  │  └────────────────────────────┬──────────────────────────┘  │ │  │ │
+│  │  │  │                               │                             │ │  │ │
+│  │  │  │  ┌────────────────────────────┴────────────────────────┐   │ │  │ │
+│  │  │  │  │            PYTHON WORKERS CONTAINER                 │   │ │  │ │
+│  │  │  │  │  ┌──────────────────┐  ┌──────────────────┐        │   │ │  │ │
+│  │  │  │  │  │ worker_insurance │  │ worker_risk      │        │   │ │  │ │
+│  │  │  │  │  │ .py              │  │ .py              │        │   │ │  │ │
+│  │  │  │  │  └──────────────────┘  └──────────────────┘        │   │ │  │ │
+│  │  │  │  └─────────────────────────────────────────────────────┘   │ │  │ │
+│  │  │  └────────────────────────────────────────────────────────────┘ │  │ │
+│  │  └──────────────────────────────────┬──────────────────────────────┘  │ │
+│  │                                     │ JDBC                            │ │
+│  │                                     ▼                                 │ │
+│  │   ┌───────────────────────────────────────────────────────────────┐   │ │
+│  │   │                  AURORA SECURITY GROUP                        │   │ │
+│  │   │  ┌─────────────────────────────────────────────────────────┐  │   │ │
+│  │   │  │           AMAZON AURORA POSTGRESQL                      │  │   │ │
+│  │   │  │                                                         │  │   │ │
+│  │   │  │  Port: 5432                                             │  │   │ │
+│  │   │  │  Engine: Aurora PostgreSQL                              │  │   │ │
+│  │   │  │  Publicly Accessible: NO                                │  │   │ │
+│  │   │  │                                                         │  │   │ │
+│  │   │  │  Tables: ACT_RE_*, ACT_RU_*, ACT_HI_*, ACT_GE_*         │  │   │ │
+│  │   │  └─────────────────────────────────────────────────────────┘  │   │ │
+│  │   └───────────────────────────────────────────────────────────────┘   │ │
+│  │                                                                       │ │
+│  │  Inbound: EC2 Security Group Only                                     │ │
+│  └───────────────────────────────────────────────────────────────────────┘ │
+│                                                                             │
+│  Inbound: Corporate IP Only                                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Data Flow Through the System
@@ -204,7 +198,6 @@ The architectural decisions in this project address specific enterprise requirem
 │  Source     │    │ Orchestrator│    │   Build     │    │  Artifacts  │    │   Deploy    │
 └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
        │                  │                  │                  │                  │
-       │                  │                  │                  │                  │
        ▼                  ▼                  ▼                  ▼                  ▼
   Push to main      Detect change      Build Docker       Store build       Execute on EC2
   branch            Start pipeline     images             artifacts         Run scripts
@@ -212,7 +205,7 @@ The architectural decisions in this project address specific enterprise requirem
 
 ### Stage 1: Source (GitHub)
 
-**Repository**: `AnisLayaida/camunda-project`
+**Repository**: `<your-github-username>/camunda-project`
 
 **Trigger**: Push to `main` branch
 
@@ -243,10 +236,10 @@ version: 0.2
 
 env:
   variables:
-    AWS_REGION: eu-west-2
-    CODEARTIFACT_DOMAIN: anis-camunda-project
-    CODEARTIFACT_REPO: instance-repository
-    ACCOUNT_ID: 201786699573
+    AWS_REGION: <your-region>
+    CODEARTIFACT_DOMAIN: <your-domain>
+    CODEARTIFACT_REPO: <your-repo>
+    ACCOUNT_ID: <your-account-id>
 
 phases:
   install:
@@ -290,9 +283,7 @@ artifacts:
 
 ### Stage 3: Artifact Storage (S3)
 
-**Bucket**: `anis-s3bucket`
-
-**Object**: `anis-codeartifact-file`
+**Bucket**: `<your-s3-bucket>`
 
 The build artifacts are compressed and stored in S3. CodeDeploy retrieves artifacts from this location during deployment.
 
@@ -302,13 +293,11 @@ The build artifacts are compressed and stored in S3. CodeDeploy retrieves artifa
 - Deployment scripts
 - Application code
 
-**Artifact retention**: Objects are overwritten on each build. Historical artifacts are not retained by default.
-
 ### Stage 4: Deploy (CodeDeploy)
 
 **Application**: `camunda-app`
 
-**Deployment Group**: `CAMUNDA-PROJECT`
+**Deployment Group**: `<your-deployment-group>`
 
 **Deployment Type**: In-place
 
@@ -479,26 +468,18 @@ Admin provides system administration capabilities:
 
 ### Amazon Aurora PostgreSQL
 
-**Cluster identifier**: `camunda-instance-database`
-
-**Instance identifier**: `camunda-instance-database-instance-1`
-
-**Endpoint**: `camunda-instance-database-instance-1.c1eogicauczi.eu-west-2.rds.amazonaws.com`
+**Engine**: Aurora PostgreSQL
 
 **Port**: 5432
 
-**Engine**: Aurora PostgreSQL
-
-**Instance class**: `db.t3.medium`
-
-**Availability Zone**: `eu-west-2a`
+**Publicly Accessible**: No (critical security requirement)
 
 ### JDBC Connectivity
 
 The Camunda container connects to Aurora using the PostgreSQL JDBC driver:
 
 ```
-jdbc:postgresql://camunda-instance-database-instance-1.c1eogicauczi.eu-west-2.rds.amazonaws.com:5432/camunda
+jdbc:postgresql://<your-aurora-endpoint>:5432/<database-name>
 ```
 
 **Connection pool configuration** (Camunda defaults):
@@ -594,7 +575,7 @@ For these reasons, **this CI/CD pipeline deliberately does NOT auto-deploy BPMN/
 
 1. Open the process definition in Camunda Modeler
 2. Click the "Deploy" button in the toolbar
-3. Enter the REST API endpoint: `http://<EC2-IP>:8080/engine-rest`
+3. Enter the REST API endpoint: `http://<your-server>:8080/engine-rest`
 4. Provide credentials when prompted
 5. Review the deployment summary and confirm
 
@@ -604,7 +585,7 @@ Using `curl`:
 
 ```bash
 curl -X POST \
-  "http://<EC2-IP>:8080/engine-rest/deployment/create" \
+  "http://<your-server>:8080/engine-rest/deployment/create" \
   -u admin:<password> \
   -F "deployment-name=insurance-process-v1.2.0" \
   -F "enable-duplicate-filtering=true" \
@@ -618,7 +599,7 @@ Using Python:
 ```python
 import requests
 
-url = "http://<EC2-IP>:8080/engine-rest/deployment/create"
+url = "http://<your-server>:8080/engine-rest/deployment/create"
 auth = ("admin", "<password>")
 
 files = {
@@ -771,6 +752,17 @@ In BPMN, an external task is defined by setting the implementation to "External"
 
 **Lock mechanism**: When a worker fetches a task, it specifies a lock duration (e.g., 10 minutes). If the worker crashes without completing, the lock expires and the task becomes available for other workers.
 
+### External Task Topics
+
+| Topic | Handler | Description |
+|-------|---------|-------------|
+| `determine-riskgroup` | `worker_insurance.py` | Calculates risk score and returns Green/Yellow/Red rating |
+| `send-policyholder-message` | `worker_insurance.py` | Sends approval or rejection email to applicant |
+| `inform-manager` | `worker_insurance.py` | Notifies underwriting team about Yellow applications |
+| `request-documents` | `worker_insurance.py` | Sends document request email to applicant |
+| `calculate-detailed-risk` | `worker_risk.py` | Advanced multi-factor risk calculation |
+| `evaluate-premium` | `worker_risk.py` | Calculates final premium with multipliers |
+
 ### Failure Isolation Benefits
 
 **Worker failure**: If a Python worker throws an unhandled exception, only that task is affected. The worker process restarts and continues processing other tasks. The failed task is retried after the lock expires.
@@ -779,23 +771,13 @@ In BPMN, an external task is defined by setting the implementation to "External"
 
 **Poison message handling**: Tasks that consistently fail are marked as incidents after exhausting retries. An operator can investigate and resolve in Cockpit without affecting other tasks.
 
-**Resource exhaustion**: If a worker runs out of memory or CPU, it only affects tasks locked by that worker. Other workers continue processing normally.
-
-### Worker Implementation
-
-The following Python workers implement the external tasks defined in the BPMN:
-
-**worker_insurance.py**: Handles insurance-specific business logic including document validation, approval routing, and notification sending.
-
-**worker_risk.py**: Implements risk calculation logic that could integrate with external risk assessment services or machine learning models.
-
 ---
 
 ## Security Model
 
 ### Security Groups
 
-**EC2 Security Group** (`camunda-project-stack-PublicSecurityGroup-*`)
+**EC2 Security Group**
 
 | Direction | Protocol | Port | Source | Purpose |
 |-----------|----------|------|--------|---------|
@@ -803,7 +785,7 @@ The following Python workers implement the external tasks defined in the BPMN:
 | Inbound | TCP | 8080 | Corporate IP /32 | Camunda web/API |
 | Outbound | All | All | 0.0.0.0/0 | Internet access |
 
-**Aurora Security Group** (`rds-ec2-1`)
+**Aurora Security Group**
 
 | Direction | Protocol | Port | Source | Purpose |
 |-----------|----------|------|--------|---------|
@@ -926,23 +908,13 @@ Expected response:
 docker exec camunda curl -s http://localhost:8080/engine-rest/process-definition/count
 ```
 
-Expected response:
-```json
-{
-  "count": 2
-}
-```
-
 ### Accessing Camunda Cockpit
 
-1. Obtain the EC2 public IP from the AWS Console or by running:
-   ```bash
-   curl -s http://169.254.169.254/latest/meta-data/public-ipv4
-   ```
+1. Ensure your IP is whitelisted in the EC2 security group
 
 2. Open a browser and navigate to:
    ```
-   http://<EC2-PUBLIC-IP>:8080/camunda/app/cockpit/
+   http://<your-ec2-public-ip>:8080/camunda/app/cockpit/
    ```
 
 3. Log in with administrator credentials
@@ -985,13 +957,6 @@ docker logs --since 1h camunda
 docker logs -t camunda
 ```
 
-**Log levels**: Camunda uses SLF4J with Logback. The default level is INFO. To enable DEBUG logging, set the environment variable:
-
-```yaml
-environment:
-  - LOGGING_LEVEL_ORG_CAMUNDA=DEBUG
-```
-
 ### Camunda Cockpit Monitoring
 
 **Process Instance Monitoring**:
@@ -1012,11 +977,7 @@ environment:
 
 ### Database Observability
 
-**Aurora Performance Insights**:
-
-1. Navigate to RDS Console > Databases > camunda-instance-database-instance-1
-2. Click "Monitoring" tab
-3. Click "Performance Insights"
+**Aurora Performance Insights** (via AWS Console):
 
 Performance Insights shows:
 - Database load by wait events
@@ -1030,12 +991,6 @@ Key metrics to monitor:
 - `DatabaseConnections`: Should stay below connection limit
 - `FreeableMemory`: Should not approach zero
 - `ReadIOPS` / `WriteIOPS`: Baseline for capacity planning
-
-**Connection monitoring from Camunda**:
-
-```bash
-curl -s "http://localhost:8080/engine-rest/metrics/process-engine-process-instances" | jq
-```
 
 ---
 
@@ -1176,11 +1131,6 @@ The separation of infrastructure deployment from process deployment is a best pr
 - Staging: Separate AWS account/VPC mirroring production
 - Production: Current setup with additional hardening
 
-**Benefits**:
-- Test process changes before production
-- Validate infrastructure changes safely
-- Enable performance testing at scale
-
 ### Automated Validation
 
 **Current state**: BPMN validation occurs during deployment, after human approval.
@@ -1191,13 +1141,6 @@ The separation of infrastructure deployment from process deployment is a best pr
 - Simulation testing for logic errors
 - Integration tests for external task handlers
 
-**Implementation**:
-```bash
-# Example validation in CI/CD
-npx bpmnlint camunda/insurance_process.bpmn
-java -jar camunda-bpm-assert.jar --validate camunda/insurance_process.bpmn
-```
-
 ### Secrets Management
 
 **Current state**: Credentials in environment variables on EC2.
@@ -1206,12 +1149,6 @@ java -jar camunda-bpm-assert.jar --validate camunda/insurance_process.bpmn
 - Store database credentials in Secrets Manager
 - Rotate credentials automatically
 - Retrieve at runtime without storing on disk
-
-**Implementation**:
-```yaml
-environment:
-  - SPRING_DATASOURCE_PASSWORD=${aws secretsmanager get-secret-value --secret-id camunda/db-password --query SecretString --output text}
-```
 
 ### Observability Enhancements
 
@@ -1233,11 +1170,6 @@ environment:
 - Export Camunda metrics to Prometheus
 - Create Grafana dashboards
 - Alert on process SLOs (e.g., average completion time)
-
-**Health checks**:
-- Implement deep health checks beyond HTTP response
-- Check database connectivity
-- Check worker responsiveness
 
 ### High Availability
 
@@ -1322,19 +1254,11 @@ curl http://localhost:8080/engine-rest/incident
 
 | Resource | URL |
 |----------|-----|
-| Cockpit | `http://<IP>:8080/camunda/app/cockpit/` |
-| Tasklist | `http://<IP>:8080/camunda/app/tasklist/` |
-| Admin | `http://<IP>:8080/camunda/app/admin/` |
-| REST API | `http://<IP>:8080/engine-rest/` |
+| Cockpit | `http://<your-server>:8080/camunda/app/cockpit/` |
+| Tasklist | `http://<your-server>:8080/camunda/app/tasklist/` |
+| Admin | `http://<your-server>:8080/camunda/app/admin/` |
+| REST API | `http://<your-server>:8080/engine-rest/` |
 | API Docs | `https://docs.camunda.org/manual/7.23/reference/rest/` |
-
-### Contact and Support
-
-For issues with this deployment:
-1. Check the incident list in Cockpit
-2. Review Docker container logs
-3. Verify security group rules
-4. Check Aurora connectivity and status
 
 ---
 
@@ -1344,4 +1268,15 @@ This project is provided for educational and demonstration purposes. Camunda Pla
 
 ---
 
-*Last updated: January 2025*
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a pull request
+
+Please ensure no sensitive information (credentials, IPs, account IDs) is included in commits.
+
+---
+
+*Documentation generated for Camunda 7 BPM Platform deployment on AWS*

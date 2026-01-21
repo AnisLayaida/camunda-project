@@ -1,0 +1,35 @@
+# Camunda External Task Worker Dependencies
+# Production-ready requirements for insurance process automation
+
+# HTTP client for Camunda REST API
+requests>=2.31.0,<3.0.0
+
+# Environment variable management
+python-dotenv>=1.0.0,<2.0.0
+
+# JSON Schema validation (optional, for strict input validation)
+jsonschema>=4.20.0,<5.0.0
+
+# Retry logic with exponential backoff
+tenacity>=8.2.0,<9.0.0
+
+# Structured logging
+structlog>=23.2.0,<24.0.0
+
+# Date/time utilities
+python-dateutil>=2.8.2,<3.0.0
+
+# Type hints support for older Python versions
+typing-extensions>=4.8.0,<5.0.0
+
+# Health check endpoint (optional)
+flask>=3.0.0,<4.0.0
+
+# Prometheus metrics (optional, for monitoring)
+prometheus-client>=0.19.0,<1.0.0
+
+# Testing dependencies
+pytest>=7.4.0,<8.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-mock>=3.12.0,<4.0.0
+responses>=0.24.0,<1.0.0
