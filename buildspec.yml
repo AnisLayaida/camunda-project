@@ -13,7 +13,6 @@ phases:
       python: 3.9
     commands:
       - echo "Installing system dependencies..."
-      - yum install -y docker
       - pip install --upgrade pip
 
   pre_build:
@@ -25,9 +24,8 @@ phases:
     commands:
       - echo "Build started on $(date)"
       - echo "Installing Python worker dependencies..."
-      - pip install -r workers/requirements.txt || true
-      - echo "Building Docker images..."
-      - docker compose build
+      - pip install -r python-workers/requirements.txt || true
+      - echo "Build completed - files ready for deployment"
 
   post_build:
     commands:
