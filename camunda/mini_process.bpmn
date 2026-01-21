@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:modeler="http://camunda.org/schema/modeler/1.0" id="Definitions_0ipz7ex" targetNamespace="http://bpmn.io/schema/bpmn" exporter="Camunda Modeler" exporterVersion="5.38.1" modeler:executionPlatform="Camunda Platform" modeler:executionPlatformVersion="7.23.0">
+  <bpmn:process id="document_request_process" name="Document Request Process" isExecutable="true" camunda:historyTimeToLive="180">
+    <bpmn:startEvent id="Event_1qqgwqc">
+      <bpmn:outgoing>Flow_17d82ei</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:task id="Activity_0atx1cq" name="Request for more documents">
+      <bpmn:incoming>Flow_17d82ei</bpmn:incoming>
+      <bpmn:outgoing>Flow_0jra91d</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:userTask id="Activity_1kmd07x" name="User makes decision">
+      <bpmn:incoming>Flow_03jt1ds</bpmn:incoming>
+      <bpmn:outgoing>Flow_0jx5hpc</bpmn:outgoing>
+    </bpmn:userTask>
+    <bpmn:endEvent id="Event_1hr9n5w" name="End of request process and continuation of quote generation">
+      <bpmn:incoming>Flow_0jx5hpc</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:exclusiveGateway id="Gateway_1p3pvfs" name="Documents Recieved?">
+      <bpmn:incoming>Flow_0jra91d</bpmn:incoming>
+      <bpmn:outgoing>Flow_03jt1ds</bpmn:outgoing>
+      <bpmn:outgoing>Flow_0nek0l7</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="Event_0u6axsg" name="Whole process ended">
+      <bpmn:incoming>Flow_09ongwc</bpmn:incoming>
+    </bpmn:endEvent>
+    <bpmn:task id="Activity_1wlfzpq" name="Automatic Rejection">
+      <bpmn:incoming>Flow_0nek0l7</bpmn:incoming>
+      <bpmn:outgoing>Flow_09ongwc</bpmn:outgoing>
+    </bpmn:task>
+    <bpmn:sequenceFlow id="Flow_17d82ei" sourceRef="Event_1qqgwqc" targetRef="Activity_0atx1cq" />
+    <bpmn:sequenceFlow id="Flow_0jra91d" sourceRef="Activity_0atx1cq" targetRef="Gateway_1p3pvfs" />
+    <bpmn:sequenceFlow id="Flow_03jt1ds" name="Yes" sourceRef="Gateway_1p3pvfs" targetRef="Activity_1kmd07x">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${recieved == "yes"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_0jx5hpc" sourceRef="Activity_1kmd07x" targetRef="Event_1hr9n5w" />
+    <bpmn:sequenceFlow id="Flow_0nek0l7" name="No" sourceRef="Gateway_1p3pvfs" targetRef="Activity_1wlfzpq">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${recieved == "no"}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="Flow_09ongwc" sourceRef="Activity_1wlfzpq" targetRef="Event_0u6axsg" />
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="document_request_process">
+      <bpmndi:BPMNShape id="BPMNShape_16hduhz" bpmnElement="Event_1qqgwqc">
+        <dc:Bounds x="152" y="122" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_0ygylv8" bpmnElement="Activity_0atx1cq">
+        <dc:Bounds x="290" y="100" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1v9j4cp_di" bpmnElement="Activity_1kmd07x">
+        <dc:Bounds x="630" y="100" width="100" height="80" />
+        <bpmndi:BPMNLabel />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Event_1hr9n5w_di" bpmnElement="Event_1hr9n5w">
+        <dc:Bounds x="832" y="122" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="809" y="165" width="83" height="53" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_1p3pvfs_di" bpmnElement="Gateway_1p3pvfs" isMarkerVisible="true">
+        <dc:Bounds x="495" y="115" width="50" height="50" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="492" y="85" width="56" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_03h30l6" bpmnElement="Event_0u6axsg">
+        <dc:Bounds x="832" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="814" y="275" width="73" height="27" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Activity_1y01lxo_di" bpmnElement="Activity_1wlfzpq">
+        <dc:Bounds x="630" y="210" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_17d82ei_di" bpmnElement="Flow_17d82ei">
+        <di:waypoint x="188" y="140" />
+        <di:waypoint x="290" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0jra91d_di" bpmnElement="Flow_0jra91d">
+        <di:waypoint x="390" y="140" />
+        <di:waypoint x="495" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_03jt1ds_di" bpmnElement="Flow_03jt1ds">
+        <di:waypoint x="545" y="140" />
+        <di:waypoint x="630" y="140" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="579" y="122" width="18" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0jx5hpc_di" bpmnElement="Flow_0jx5hpc">
+        <di:waypoint x="730" y="140" />
+        <di:waypoint x="832" y="140" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_0nek0l7_di" bpmnElement="Flow_0nek0l7">
+        <di:waypoint x="520" y="165" />
+        <di:waypoint x="520" y="250" />
+        <di:waypoint x="630" y="250" />
+        <bpmndi:BPMNLabel>
+          <dc:Bounds x="572" y="233" width="15" height="14" />
+        </bpmndi:BPMNLabel>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_09ongwc_di" bpmnElement="Flow_09ongwc">
+        <di:waypoint x="730" y="250" />
+        <di:waypoint x="832" y="250" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
