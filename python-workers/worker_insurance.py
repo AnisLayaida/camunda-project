@@ -1,21 +1,15 @@
+#!/usr/bin/env python3
 """
 Insurance Process External Task Worker
 
-Handles external tasks for the insurance application workflow as shown in the BPMN:
+Handles external tasks for the insurance application workflow.
 
-BPMN Flow:
-1. Insurance Application Received (Start Event)
-2. Determine Riskgroup (Business Rule Task - calls DMN)
-3. Gateway routes based on riskRating:
-   - Green → Approved → Message sent to policyholder → End
-   - Yellow → Checks Application (User Task) → Accepted? → Approved/Rejected
-   - Red → Rejected → Message sent to policyholder → End
-
-External Tasks handled by this worker:
-- determine-riskgroup: Calculate risk rating (Green/Yellow/Red)
-- send-policyholder-message: Send email notification (approval or rejection)
-- inform-manager: Notify manager about Yellow-rated applications
-- request-documents: Handle document request subprocess
+External Tasks handled by this worker (matching BPMN topics):
+- send-approval-email: Send approval notification to policyholder (Green path + Yellow approved)
+- send-rejection-email: Send rejection notification to policyholder (Red path + Yellow rejected)  
+- inform-manager: Notify manager when application takes > 2 days (Timer boundary event)
+- request-documents-email: Send document request to applicant (Document subprocess)
+- send-auto-rejection-email: Auto-reject when documents not received (Document subprocess timeout)
 """
 
 import logging
@@ -23,14 +17,12 @@ import time
 import os
 import sys
 import json
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 import requests
 from requests.exceptions import RequestException
 
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -38,201 +30,188 @@ logging.basicConfig(
 )
 logger = logging.getLogger('insurance-worker')
 
-# Configuration
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
 CAMUNDA_URL = os.getenv('CAMUNDA_URL', 'http://localhost:8080/engine-rest')
+CAMUNDA_USERNAME = os.getenv('CAMUNDA_USERNAME', '')
+CAMUNDA_PASSWORD = os.getenv('CAMUNDA_PASSWORD', '')
 WORKER_ID = os.getenv('WORKER_ID', f'insurance-worker-{os.getpid()}')
 LOCK_DURATION = int(os.getenv('LOCK_DURATION', '300000'))
 POLL_INTERVAL = int(os.getenv('POLL_INTERVAL', '5'))
 MAX_TASKS = int(os.getenv('MAX_TASKS', '5'))
 
 # Email Configuration
-SMTP_HOST = os.getenv('SMTP_HOST', 'email-smtp.eu-west-2.amazonaws.com')
+EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'false').lower() == 'true'
+SMTP_HOST = os.getenv('SMTP_HOST', 'localhost')
 SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
 SMTP_USERNAME = os.getenv('SMTP_USERNAME', '')
 SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
 EMAIL_FROM = os.getenv('EMAIL_FROM', 'noreply@insurance-company.com')
-EMAIL_ENABLED = os.getenv('EMAIL_ENABLED', 'false').lower() == 'true'
-MANAGER_EMAIL = os.getenv('MANAGER_EMAIL', 'underwriting@insurance-company.com')
-SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL', '')
+MANAGER_EMAIL = os.getenv('MANAGER_EMAIL', 'manager@insurance-company.com')
 
+# =============================================================================
+# TOPIC DEFINITIONS - MUST MATCH BPMN camunda:topic attributes
+# =============================================================================
 TOPICS = [
-    {'topicName': 'determine-riskgroup', 'lockDuration': LOCK_DURATION,
-     'variables': ['age', 'carMake', 'carModel', 'region', 'applicantName', 'applicantEmail']},
-    {'topicName': 'send-policyholder-message', 'lockDuration': LOCK_DURATION,
-     'variables': ['applicantName', 'applicantEmail', 'riskRating', 'approved', 'premium', 'policyNumber', 'rejectionReason']},
-    {'topicName': 'inform-manager', 'lockDuration': LOCK_DURATION,
-     'variables': ['applicantName', 'applicantEmail', 'riskRating', 'riskScore', 'applicationId', 'calculatedPremium']},
-    {'topicName': 'request-documents', 'lockDuration': LOCK_DURATION,
-     'variables': ['applicantName', 'applicantEmail', 'missingDocuments', 'applicationId']}
+    {
+        'topicName': 'send-approval-email',
+        'lockDuration': LOCK_DURATION,
+        'variables': ['applicantName', 'applicantEmail', 'rating', 'carMake', 'carModel']
+    },
+    {
+        'topicName': 'send-rejection-email', 
+        'lockDuration': LOCK_DURATION,
+        'variables': ['applicantName', 'applicantEmail', 'rating', 'rejectionReason']
+    },
+    {
+        'topicName': 'inform-manager',
+        'lockDuration': LOCK_DURATION,
+        'variables': ['applicantName', 'applicantEmail', 'rating', 'age', 'carMake', 'carModel']
+    },
+    {
+        'topicName': 'request-documents-email',
+        'lockDuration': LOCK_DURATION,
+        'variables': ['applicantName', 'applicantEmail', 'missingDocuments']
+    },
+    {
+        'topicName': 'send-auto-rejection-email',
+        'lockDuration': LOCK_DURATION,
+        'variables': ['applicantName', 'applicantEmail']
+    }
 ]
 
 
+# =============================================================================
+# EMAIL SERVICE (Mock when EMAIL_ENABLED=false)
+# =============================================================================
 class EmailService:
+    """Handles email sending with mock mode for testing."""
+    
     def __init__(self):
         self.enabled = EMAIL_ENABLED
-        self.smtp_host = SMTP_HOST
-        self.smtp_port = SMTP_PORT
-        self.username = SMTP_USERNAME
-        self.password = SMTP_PASSWORD
-        self.from_address = EMAIL_FROM
+        logger.info(f"Email Service initialized - Mode: {'LIVE' if self.enabled else 'MOCK'}")
     
-    def send_email(self, to: str, subject: str, html_body: str, text_body: str = None) -> bool:
+    def send_email(self, to: str, subject: str, body: str) -> bool:
+        """Send email or log mock email."""
         if not self.enabled:
-            logger.info(f"[EMAIL MOCK] To: {to}, Subject: {subject}")
+            logger.info("=" * 60)
+            logger.info("[MOCK EMAIL]")
+            logger.info(f"  To: {to}")
+            logger.info(f"  Subject: {subject}")
+            logger.info(f"  Body Preview: {body[:200]}...")
+            logger.info("=" * 60)
             return True
+        
+        # Real email sending would go here
         try:
+            import smtplib
+            from email.mime.text import MIMEText
+            from email.mime.multipart import MIMEMultipart
+            
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
-            msg['From'] = self.from_address
+            msg['From'] = EMAIL_FROM
             msg['To'] = to
-            if text_body:
-                msg.attach(MIMEText(text_body, 'plain'))
-            msg.attach(MIMEText(html_body, 'html'))
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            msg.attach(MIMEText(body, 'html'))
+            
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
                 server.starttls()
-                if self.username and self.password:
-                    server.login(self.username, self.password)
-                server.sendmail(self.from_address, to, msg.as_string())
-            logger.info(f"Email sent to {to}")
+                if SMTP_USERNAME and SMTP_PASSWORD:
+                    server.login(SMTP_USERNAME, SMTP_PASSWORD)
+                server.sendmail(EMAIL_FROM, to, msg.as_string())
+            
+            logger.info(f"Email sent successfully to {to}")
             return True
+            
         except Exception as e:
-            logger.error(f"Email failed to {to}: {e}")
+            logger.error(f"Failed to send email to {to}: {e}")
             return False
-    
-    def send_approval_email(self, to: str, name: str, policy_number: str, premium: float) -> bool:
-        subject = f"Insurance Application Approved - Policy #{policy_number}"
-        html = f"""
-        <html><body style="font-family:Arial,sans-serif;">
-        <div style="max-width:600px;margin:0 auto;padding:20px;">
-            <div style="background:#28a745;color:white;padding:20px;text-align:center;">
-                <h1>Congratulations!</h1>
-            </div>
-            <div style="padding:20px;background:#f9f9f9;">
-                <p>Dear {name},</p>
-                <p>Your insurance application has been <strong>approved</strong>.</p>
-                <div style="background:#fff;padding:15px;border-left:4px solid #28a745;margin:15px 0;">
-                    <p><strong>Policy Number:</strong> {policy_number}</p>
-                    <p><strong>Annual Premium:</strong> £{premium:,.2f}</p>
-                </div>
-                <p>Complete payment within 14 days to activate your policy.</p>
-                <p>Best regards,<br>The Insurance Team</p>
-            </div>
-        </div></body></html>"""
-        text = f"Dear {name},\n\nYour application has been APPROVED.\nPolicy: {policy_number}\nPremium: £{premium:,.2f}"
-        return self.send_email(to, subject, html, text)
-    
-    def send_rejection_email(self, to: str, name: str, reason: str) -> bool:
-        subject = "Update on Your Insurance Application"
-        html = f"""
-        <html><body style="font-family:Arial,sans-serif;">
-        <div style="max-width:600px;margin:0 auto;padding:20px;">
-            <div style="background:#6c757d;color:white;padding:20px;text-align:center;">
-                <h1>Application Update</h1>
-            </div>
-            <div style="padding:20px;background:#f9f9f9;">
-                <p>Dear {name},</p>
-                <p>We regret to inform you that we are unable to offer coverage at this time.</p>
-                <div style="background:#fff;padding:15px;border-left:4px solid #dc3545;margin:15px 0;">
-                    <p><strong>Reason:</strong> {reason}</p>
-                </div>
-                <p>You may reapply after 90 days.</p>
-                <p>Best regards,<br>The Insurance Team</p>
-            </div>
-        </div></body></html>"""
-        text = f"Dear {name},\n\nYour application was not approved.\nReason: {reason}"
-        return self.send_email(to, subject, html, text)
-    
-    def send_manager_notification(self, app_id: str, name: str, rating: str, score: float, premium: float) -> bool:
-        subject = f"[ACTION] Review Required - {app_id}"
-        html = f"""
-        <html><body>
-        <div style="background:#fff3cd;border:1px solid #ffc107;padding:15px;">
-            <strong>Manual Review Required</strong>
-        </div>
-        <table style="margin:15px 0;">
-            <tr><td><strong>Application:</strong></td><td>{app_id}</td></tr>
-            <tr><td><strong>Applicant:</strong></td><td>{name}</td></tr>
-            <tr><td><strong>Risk Rating:</strong></td><td style="color:#ffc107;font-weight:bold;">{rating}</td></tr>
-            <tr><td><strong>Risk Score:</strong></td><td>{score:.1f}/100</td></tr>
-            <tr><td><strong>Premium:</strong></td><td>£{premium:,.2f}</td></tr>
-        </table>
-        <p>Please review within 2 business days.</p>
-        </body></html>"""
-        return self.send_email(MANAGER_EMAIL, subject, html)
-    
-    def send_document_request(self, to: str, name: str, docs: List[str], app_id: str) -> bool:
-        subject = f"Documents Required - {app_id}"
-        doc_list = "".join([f"<li>{d.replace('_',' ').title()}</li>" for d in docs])
-        html = f"""
-        <html><body style="font-family:Arial,sans-serif;">
-        <h2>Additional Documents Required</h2>
-        <p>Dear {name},</p>
-        <p>Please submit the following within 7 days:</p>
-        <ul>{doc_list}</ul>
-        <p>Best regards,<br>The Insurance Team</p>
-        </body></html>"""
-        return self.send_email(to, subject, html)
 
 
+# =============================================================================
+# CAMUNDA CLIENT
+# =============================================================================
 class CamundaClient:
+    """Client for Camunda REST API interactions."""
+    
     def __init__(self, base_url: str, worker_id: str):
         self.base_url = base_url.rstrip('/')
         self.worker_id = worker_id
         self.session = requests.Session()
-        username = os.getenv('CAMUNDA_USERNAME')
-        password = os.getenv('CAMUNDA_PASSWORD')
-        if username and password:
-            self.session.auth = (username, password)
-        self.session.headers.update({'Content-Type': 'application/json', 'Accept': 'application/json'})
+        
+        # Setup authentication if provided
+        if CAMUNDA_USERNAME and CAMUNDA_PASSWORD:
+            self.session.auth = (CAMUNDA_USERNAME, CAMUNDA_PASSWORD)
+            logger.info("Using Basic Authentication")
+        
+        self.session.headers.update({
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        })
     
     def fetch_and_lock(self, topics: List[Dict], max_tasks: int = 5) -> List[Dict]:
+        """Fetch and lock external tasks from Camunda."""
         url = f"{self.base_url}/external-task/fetchAndLock"
-        payload = {'workerId': self.worker_id, 'maxTasks': max_tasks, 'usePriority': True,
-                   'asyncResponseTimeout': 30000, 'topics': topics}
+        payload = {
+            'workerId': self.worker_id,
+            'maxTasks': max_tasks,
+            'usePriority': True,
+            'asyncResponseTimeout': 30000,
+            'topics': topics
+        }
+        
         try:
             response = self.session.post(url, json=payload, timeout=35)
             response.raise_for_status()
-            return response.json()
+            tasks = response.json()
+            if tasks:
+                logger.info(f"Fetched {len(tasks)} task(s)")
+            return tasks
         except RequestException as e:
-            logger.error(f"Fetch error: {e}")
+            logger.error(f"Error fetching tasks: {e}")
             return []
     
     def complete_task(self, task_id: str, variables: Optional[Dict] = None) -> bool:
+        """Mark a task as completed."""
         url = f"{self.base_url}/external-task/{task_id}/complete"
         payload = {'workerId': self.worker_id}
+        
         if variables:
             payload['variables'] = self._format_variables(variables)
+        
         try:
             response = self.session.post(url, json=payload, timeout=10)
             response.raise_for_status()
-            logger.info(f"Task {task_id} completed")
+            logger.info(f"Task {task_id[:8]}... completed successfully")
             return True
         except RequestException as e:
-            logger.error(f"Complete error: {e}")
+            logger.error(f"Error completing task {task_id}: {e}")
             return False
     
-    def handle_failure(self, task_id: str, error: str, retries: int = 3, timeout: int = 10000) -> bool:
+    def handle_failure(self, task_id: str, error_message: str, 
+                       retries: int = 3, retry_timeout: int = 10000) -> bool:
+        """Report a task failure."""
         url = f"{self.base_url}/external-task/{task_id}/failure"
-        payload = {'workerId': self.worker_id, 'errorMessage': error[:500], 'retries': retries, 'retryTimeout': timeout}
+        payload = {
+            'workerId': self.worker_id,
+            'errorMessage': error_message[:500],
+            'retries': retries,
+            'retryTimeout': retry_timeout
+        }
+        
         try:
             response = self.session.post(url, json=payload, timeout=10)
             response.raise_for_status()
+            logger.warning(f"Task {task_id[:8]}... failed, {retries} retries remaining")
             return True
-        except RequestException:
-            return False
-    
-    def handle_bpmn_error(self, task_id: str, code: str, msg: str = "") -> bool:
-        url = f"{self.base_url}/external-task/{task_id}/bpmnError"
-        payload = {'workerId': self.worker_id, 'errorCode': code, 'errorMessage': msg}
-        try:
-            response = self.session.post(url, json=payload, timeout=10)
-            response.raise_for_status()
-            return True
-        except RequestException:
+        except RequestException as e:
+            logger.error(f"Error reporting failure: {e}")
             return False
     
     @staticmethod
     def _format_variables(variables: Dict) -> Dict:
+        """Format variables for Camunda API."""
         formatted = {}
         for key, value in variables.items():
             if isinstance(value, dict) and 'value' in value:
@@ -245,197 +224,348 @@ class CamundaClient:
                     var_type = 'Integer'
                 elif isinstance(value, float):
                     var_type = 'Double'
-                elif isinstance(value, (dict, list)):
-                    var_type = 'Json'
-                    value = json.dumps(value)
                 formatted[key] = {'value': value, 'type': var_type}
         return formatted
 
 
+# =============================================================================
+# TASK HANDLERS
+# =============================================================================
 class TaskHandlers:
+    """Handlers for each external task topic."""
+    
     def __init__(self):
         self.email = EmailService()
     
-    def determine_riskgroup(self, variables: Dict) -> Dict:
-        """Calculate risk rating for the gateway."""
-        logger.info("Processing: Determine Riskgroup")
-        age = int(variables.get('age', {}).get('value', 30))
-        car_make = str(variables.get('carMake', {}).get('value', 'Unknown')).lower()
-        car_model = str(variables.get('carModel', {}).get('value', 'Unknown')).lower()
-        region = str(variables.get('region', {}).get('value', 'Unknown')).lower()
-        name = variables.get('applicantName', {}).get('value', 'Unknown')
-        
-        logger.info(f"Evaluating: {name}, age={age}, vehicle={car_make} {car_model}")
-        
-        score = 50
-        if age < 21: score += 35
-        elif age < 25: score += 25
-        elif age < 30: score += 10
-        elif 30 <= age < 60: score -= 15
-        elif age >= 70: score += 20
-        
-        if any(m in car_make for m in ['ferrari', 'lamborghini', 'porsche']): score += 30
-        elif any(m in car_make for m in ['bmw', 'mercedes', 'audi']): score += 15
-        elif any(m in car_make for m in ['toyota', 'honda', 'volvo']): score -= 10
-        
-        if any(kw in car_model for kw in ['sport', 'gt', 'turbo', 'amg', 'rs']): score += 15
-        if any(a in region for a in ['london', 'manchester', 'birmingham']): score += 15
-        elif any(a in region for a in ['rural', 'village']): score -= 10
-        
-        score = max(0, min(100, score))
-        
-        if score <= 35:
-            rating, mult, base = 'Green', 0.85, 400
-        elif score <= 65:
-            rating, mult, base = 'Yellow', 1.3, 500
-        else:
-            rating, mult, base = 'Red', 2.5, 600
-        
-        premium = round(base * mult, 2)
-        policy = f"POL-{datetime.now().strftime('%Y%m%d')}-{os.urandom(3).hex().upper()}"
-        app_id = f"APP-{os.urandom(4).hex().upper()}"
-        
-        logger.info(f"Result: score={score}, rating={rating}, premium=£{premium}")
-        
-        return {
-            'riskRating': rating,
-            'riskScore': score,
-            'calculatedPremium': premium,
-            'policyNumber': policy,
-            'applicationId': app_id,
-            'assessmentTimestamp': datetime.utcnow().isoformat() + 'Z'
-        }
+    def _get_var(self, variables: Dict, key: str, default: Any = '') -> Any:
+        """Safely extract a variable value."""
+        var = variables.get(key, {})
+        if isinstance(var, dict):
+            return var.get('value', default)
+        return var or default
     
-    def send_policyholder_message(self, variables: Dict) -> Dict:
-        """Send approval or rejection email."""
-        logger.info("Processing: Send Policyholder Message")
-        name = variables.get('applicantName', {}).get('value', 'Customer')
-        email = variables.get('applicantEmail', {}).get('value', '')
-        approved = variables.get('approved', {}).get('value', False)
+    # -------------------------------------------------------------------------
+    # HANDLER: send-approval-email
+    # -------------------------------------------------------------------------
+    def handle_send_approval_email(self, variables: Dict) -> Dict:
+        """Send approval email to policyholder."""
+        name = self._get_var(variables, 'applicantName', 'Customer')
+        email = self._get_var(variables, 'applicantEmail', 'unknown@example.com')
+        rating = self._get_var(variables, 'rating', 'Green')
+        car_make = self._get_var(variables, 'carMake', 'Unknown')
+        car_model = self._get_var(variables, 'carModel', 'Unknown')
         
-        if isinstance(approved, str):
-            approved = approved.lower() == 'true'
+        logger.info(f"[APPROVAL] Processing for {name} ({email})")
+        logger.info(f"  Rating: {rating}, Vehicle: {car_make} {car_model}")
         
-        if approved:
-            premium = float(variables.get('calculatedPremium', {}).get('value', 500))
-            policy = variables.get('policyNumber', {}).get('value', 'POL-UNKNOWN')
-            logger.info(f"Sending APPROVAL to {email}")
-            success = self.email.send_approval_email(email, name, policy, premium)
-            notif_type = 'APPROVAL'
-        else:
-            reason = variables.get('rejectionReason', {}).get('value', 
-                'Application did not meet underwriting criteria.')
-            logger.info(f"Sending REJECTION to {email}")
-            success = self.email.send_rejection_email(email, name, reason)
-            notif_type = 'REJECTION'
+        # Generate policy number
+        policy_number = f"POL-{datetime.now().strftime('%Y%m%d')}-{os.urandom(3).hex().upper()}"
+        
+        subject = f"Your Insurance Application Has Been Approved! - {policy_number}"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #28a745; color: white; padding: 20px; text-align: center;">
+                <h1>Congratulations, {name}!</h1>
+            </div>
+            <div style="padding: 20px; background: #f9f9f9;">
+                <p>We are pleased to inform you that your insurance application has been <strong>approved</strong>.</p>
+                
+                <div style="background: white; padding: 15px; border-left: 4px solid #28a745; margin: 15px 0;">
+                    <p><strong>Policy Number:</strong> {policy_number}</p>
+                    <p><strong>Vehicle:</strong> {car_make} {car_model}</p>
+                    <p><strong>Risk Assessment:</strong> {rating}</p>
+                </div>
+                
+                <p>Your policy documents will be sent separately. Please complete payment within 14 days to activate your coverage.</p>
+                
+                <p>Best regards,<br>The Insurance Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        success = self.email.send_email(email, subject, body)
         
         return {
             'emailSent': success,
-            'notificationType': notif_type,
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'policyNumber': policy_number,
+            'notificationType': 'APPROVAL',
+            'notificationTimestamp': datetime.utcnow().isoformat() + 'Z'
         }
     
-    def inform_manager(self, variables: Dict) -> Dict:
-        """Notify manager for Yellow applications."""
-        logger.info("Processing: Inform Manager")
-        name = variables.get('applicantName', {}).get('value', 'Unknown')
-        rating = variables.get('riskRating', {}).get('value', 'Yellow')
-        score = float(variables.get('riskScore', {}).get('value', 50))
-        app_id = variables.get('applicationId', {}).get('value', 'UNKNOWN')
-        premium = float(variables.get('calculatedPremium', {}).get('value', 500))
+    # -------------------------------------------------------------------------
+    # HANDLER: send-rejection-email
+    # -------------------------------------------------------------------------
+    def handle_send_rejection_email(self, variables: Dict) -> Dict:
+        """Send rejection email to policyholder."""
+        name = self._get_var(variables, 'applicantName', 'Customer')
+        email = self._get_var(variables, 'applicantEmail', 'unknown@example.com')
+        rating = self._get_var(variables, 'rating', 'Red')
+        reason = self._get_var(variables, 'rejectionReason', 
+                               'Your application did not meet our underwriting criteria.')
         
-        logger.info(f"Notifying manager about {app_id}")
-        success = self.email.send_manager_notification(app_id, name, rating, score, premium)
+        logger.info(f"[REJECTION] Processing for {name} ({email})")
+        logger.info(f"  Rating: {rating}, Reason: {reason}")
+        
+        subject = "Update on Your Insurance Application"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #6c757d; color: white; padding: 20px; text-align: center;">
+                <h1>Application Update</h1>
+            </div>
+            <div style="padding: 20px; background: #f9f9f9;">
+                <p>Dear {name},</p>
+                
+                <p>Thank you for your interest in our insurance services. After careful review of your application, 
+                we regret to inform you that we are unable to offer coverage at this time.</p>
+                
+                <div style="background: white; padding: 15px; border-left: 4px solid #dc3545; margin: 15px 0;">
+                    <p><strong>Reason:</strong> {reason}</p>
+                </div>
+                
+                <p>You may reapply after 90 days if your circumstances change. If you believe this decision 
+                was made in error, please contact our customer service team.</p>
+                
+                <p>Best regards,<br>The Insurance Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        success = self.email.send_email(email, subject, body)
+        
+        return {
+            'emailSent': success,
+            'notificationType': 'REJECTION',
+            'notificationTimestamp': datetime.utcnow().isoformat() + 'Z'
+        }
+    
+    # -------------------------------------------------------------------------
+    # HANDLER: inform-manager
+    # -------------------------------------------------------------------------
+    def handle_inform_manager(self, variables: Dict) -> Dict:
+        """Notify manager about application pending for too long."""
+        name = self._get_var(variables, 'applicantName', 'Unknown')
+        email = self._get_var(variables, 'applicantEmail', 'unknown@example.com')
+        rating = self._get_var(variables, 'rating', 'Yellow')
+        age = self._get_var(variables, 'age', 'N/A')
+        car_make = self._get_var(variables, 'carMake', 'Unknown')
+        car_model = self._get_var(variables, 'carModel', 'Unknown')
+        
+        logger.info(f"[MANAGER ALERT] Application pending > 2 days")
+        logger.info(f"  Applicant: {name}, Rating: {rating}")
+        
+        subject = f"[ACTION REQUIRED] Pending Application - {name}"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <div style="background: #ffc107; padding: 15px; border-radius: 5px;">
+                <strong>Manual Review Required</strong> - Application pending for more than 2 days
+            </div>
+            
+            <table style="margin: 15px 0; border-collapse: collapse;">
+                <tr><td style="padding: 8px; font-weight: bold;">Applicant:</td><td style="padding: 8px;">{name}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Email:</td><td style="padding: 8px;">{email}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Age:</td><td style="padding: 8px;">{age}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Vehicle:</td><td style="padding: 8px;">{car_make} {car_model}</td></tr>
+                <tr><td style="padding: 8px; font-weight: bold;">Risk Rating:</td>
+                    <td style="padding: 8px; color: #ffc107; font-weight: bold;">{rating}</td></tr>
+            </table>
+            
+            <p>Please review this application in <a href="http://localhost:8080/camunda/app/tasklist/">Camunda Tasklist</a>.</p>
+        </body>
+        </html>
+        """
+        
+        success = self.email.send_email(MANAGER_EMAIL, subject, body)
         
         return {
             'managerNotified': success,
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'notificationTimestamp': datetime.utcnow().isoformat() + 'Z'
         }
     
-    def request_documents(self, variables: Dict) -> Dict:
-        """Send document request email."""
-        logger.info("Processing: Request Documents")
-        name = variables.get('applicantName', {}).get('value', 'Customer')
-        email = variables.get('applicantEmail', {}).get('value', '')
-        app_id = variables.get('applicationId', {}).get('value', 'UNKNOWN')
-        docs = variables.get('missingDocuments', {}).get('value', [])
+    # -------------------------------------------------------------------------
+    # HANDLER: request-documents-email
+    # -------------------------------------------------------------------------
+    def handle_request_documents_email(self, variables: Dict) -> Dict:
+        """Send document request email to applicant."""
+        name = self._get_var(variables, 'applicantName', 'Customer')
+        email = self._get_var(variables, 'applicantEmail', 'unknown@example.com')
+        missing_docs = self._get_var(variables, 'missingDocuments', None)
         
-        if isinstance(docs, str):
-            try: docs = json.loads(docs)
-            except: docs = [docs]
-        if not docs:
-            docs = ['driving_license', 'proof_of_address', 'vehicle_registration']
+        # Parse missing documents
+        if missing_docs is None:
+            docs_list = ['Driving License', 'Proof of Address', 'Vehicle Registration']
+        elif isinstance(missing_docs, str):
+            try:
+                docs_list = json.loads(missing_docs)
+            except json.JSONDecodeError:
+                docs_list = [missing_docs]
+        else:
+            docs_list = list(missing_docs)
         
-        logger.info(f"Requesting docs from {email}: {docs}")
-        success = self.email.send_document_request(email, name, docs, app_id)
+        logger.info(f"[DOCUMENT REQUEST] Processing for {name} ({email})")
+        logger.info(f"  Documents: {docs_list}")
+        
+        docs_html = "".join([f"<li>{doc}</li>" for doc in docs_list])
+        
+        subject = "Additional Documents Required for Your Insurance Application"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #17a2b8; color: white; padding: 20px; text-align: center;">
+                <h1>Documents Required</h1>
+            </div>
+            <div style="padding: 20px; background: #f9f9f9;">
+                <p>Dear {name},</p>
+                
+                <p>To continue processing your insurance application, we require the following documents:</p>
+                
+                <div style="background: white; padding: 15px; border-left: 4px solid #17a2b8; margin: 15px 0;">
+                    <ul>{docs_html}</ul>
+                </div>
+                
+                <p><strong>Please submit these documents within 7 days.</strong></p>
+                
+                <p>If we do not receive the required documents, your application may be automatically rejected.</p>
+                
+                <p>Best regards,<br>The Insurance Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        success = self.email.send_email(email, subject, body)
         
         return {
             'documentRequestSent': success,
-            'requestedDocuments': docs,
-            'timestamp': datetime.utcnow().isoformat() + 'Z'
+            'requestedDocuments': json.dumps(docs_list),
+            'requestTimestamp': datetime.utcnow().isoformat() + 'Z'
+        }
+    
+    # -------------------------------------------------------------------------
+    # HANDLER: send-auto-rejection-email
+    # -------------------------------------------------------------------------
+    def handle_send_auto_rejection_email(self, variables: Dict) -> Dict:
+        """Send auto-rejection email when documents not received."""
+        name = self._get_var(variables, 'applicantName', 'Customer')
+        email = self._get_var(variables, 'applicantEmail', 'unknown@example.com')
+        
+        logger.info(f"[AUTO-REJECTION] Processing for {name} ({email})")
+        
+        subject = "Your Insurance Application - Documents Not Received"
+        body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: #dc3545; color: white; padding: 20px; text-align: center;">
+                <h1>Application Closed</h1>
+            </div>
+            <div style="padding: 20px; background: #f9f9f9;">
+                <p>Dear {name},</p>
+                
+                <p>Unfortunately, we did not receive the required documents within the specified timeframe.</p>
+                
+                <p>As a result, your insurance application has been <strong>automatically closed</strong>.</p>
+                
+                <p>If you still wish to obtain insurance coverage, you are welcome to submit a new application 
+                with all required documentation.</p>
+                
+                <p>Best regards,<br>The Insurance Team</p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        success = self.email.send_email(email, subject, body)
+        
+        return {
+            'autoRejectionSent': success,
+            'rejectionReason': 'Required documents not received within deadline',
+            'notificationTimestamp': datetime.utcnow().isoformat() + 'Z'
         }
 
 
+# =============================================================================
+# MAIN WORKER CLASS
+# =============================================================================
 class InsuranceWorker:
+    """Main worker class that polls and processes external tasks."""
+    
     def __init__(self):
         self.client = CamundaClient(CAMUNDA_URL, WORKER_ID)
         self.handlers = TaskHandlers()
-        self.handler_map = {
-            'determine-riskgroup': self.handlers.determine_riskgroup,
-            'send-policyholder-message': self.handlers.send_policyholder_message,
-            'inform-manager': self.handlers.inform_manager,
-            'request-documents': self.handlers.request_documents
-        }
         self.running = True
+        
+        # Map topics to handler methods
+        self.handler_map = {
+            'send-approval-email': self.handlers.handle_send_approval_email,
+            'send-rejection-email': self.handlers.handle_send_rejection_email,
+            'inform-manager': self.handlers.handle_inform_manager,
+            'request-documents-email': self.handlers.handle_request_documents_email,
+            'send-auto-rejection-email': self.handlers.handle_send_auto_rejection_email,
+        }
     
     def process_task(self, task: Dict) -> None:
+        """Process a single external task."""
         task_id = task['id']
         topic = task['topicName']
         variables = task.get('variables', {})
         retries = task.get('retries', 3)
         
-        logger.info(f"Processing {task_id} from '{topic}'")
+        logger.info(f"Processing task {task_id[:8]}... from topic '{topic}'")
+        
         handler = self.handler_map.get(topic)
         if not handler:
+            logger.error(f"No handler for topic '{topic}'")
             self.client.handle_failure(task_id, f"Unknown topic: {topic}", retries=0)
             return
         
         try:
             result = handler(variables)
             self.client.complete_task(task_id, variables=result)
-        except ValueError as e:
-            self.client.handle_bpmn_error(task_id, 'VALIDATION_ERROR', str(e))
         except Exception as e:
-            logger.exception(f"Error in {task_id}")
+            logger.exception(f"Error processing task {task_id}")
             self.client.handle_failure(task_id, str(e), retries=max(0, (retries or 3) - 1))
     
     def run(self) -> None:
-        logger.info("=" * 50)
-        logger.info(f"Insurance Worker: {WORKER_ID}")
-        logger.info(f"Camunda: {CAMUNDA_URL}")
+        """Main worker loop."""
+        logger.info("=" * 60)
+        logger.info("INSURANCE EXTERNAL TASK WORKER")
+        logger.info("=" * 60)
+        logger.info(f"Worker ID: {WORKER_ID}")
+        logger.info(f"Camunda URL: {CAMUNDA_URL}")
         logger.info(f"Topics: {[t['topicName'] for t in TOPICS]}")
-        logger.info(f"Email: {'ENABLED' if EMAIL_ENABLED else 'MOCK MODE'}")
-        logger.info("=" * 50)
+        logger.info(f"Email Mode: {'LIVE' if EMAIL_ENABLED else 'MOCK (simulated)'}")
+        logger.info("=" * 60)
         
         while self.running:
             try:
                 tasks = self.client.fetch_and_lock(TOPICS, MAX_TASKS)
+                
                 for task in tasks:
                     self.process_task(task)
+                
                 if not tasks:
                     time.sleep(POLL_INTERVAL)
+                    
             except KeyboardInterrupt:
+                logger.info("Shutdown requested...")
                 self.running = False
             except Exception as e:
-                logger.exception(f"Loop error: {e}")
+                logger.exception(f"Error in worker loop: {e}")
                 time.sleep(POLL_INTERVAL)
+        
         logger.info("Worker stopped")
     
-    def stop(self):
+    def stop(self) -> None:
+        """Stop the worker gracefully."""
         self.running = False
 
 
 def main():
+    """Entry point."""
     worker = InsuranceWorker()
     try:
         worker.run()

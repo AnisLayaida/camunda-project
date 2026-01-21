@@ -1,18 +1,106 @@
 version: "3.9"
 
+# =============================================================================
+# CAMUNDA BPM PLATFORM - PRODUCTION DOCKER COMPOSE
+# =============================================================================
+# 
+# SECURITY: This file uses environment variables for all sensitive data.
+# Create a .env file with the following variables:
+#   DB_HOST=your-aurora-endpoint.rds.amazonaws.com
+#   DB_NAME=camunda
+#   DB_USER=camunda_user
+#   DB_PASSWORD=your-secure-password
+#   CAMUNDA_ADMIN_USER=admin
+#   CAMUNDA_ADMIN_PASSWORD=your-admin-password
+#
+# NEVER commit .env to version control!
+# =============================================================================
+
 services:
+  # ---------------------------------------------------------------------------
+  # CAMUNDA BPM PLATFORM
+  # ---------------------------------------------------------------------------
   camunda:
-    image: camunda/camunda-bpm-platform:run-latest
+    image: camunda/camunda-bpm-platform:run-7.23.0
+    container_name: camunda
     ports:
       - "8080:8080"
-    restart: unless-stopped
-
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://camunda-instance-database-instance-1.c1eogicauczi.eu-west-2.rds.amazonaws.com:5432/camunda
-      SPRING_DATASOURCE_USERNAME: camunda_user
-      SPRING_DATASOURCE_PASSWORD: camunda-project-123
+      # Database Configuration (uses .env file)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${DB_HOST}:5432/${DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
-
+      
+      # Camunda Configuration
       CAMUNDA_BPM_DATABASE_TYPE: postgres
       CAMUNDA_BPM_DATABASE_SCHEMA_UPDATE: true
       CAMUNDA_BPM_JOB_EXECUTION_ENABLED: true
+      
+      # Admin User (uses .env file)
+      CAMUNDA_BPM_ADMIN_USER_ID: ${CAMUNDA_ADMIN_USER:-admin}
+      CAMUNDA_BPM_ADMIN_USER_PASSWORD: ${CAMUNDA_ADMIN_PASSWORD:-admin}
+      
+      # Authentication
+      CAMUNDA_BPM_RUN_AUTH_ENABLED: "true"
+      
+      # History Configuration
+      CAMUNDA_BPM_HISTORY_LEVEL: full
+      
+      # Job Executor
+      CAMUNDA_BPM_JOB_EXECUTOR_ACQUIRE_BY_DUE_DATE: "true"
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/camunda/app/welcome/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    
+    networks:
+      - camunda-network
+
+  # ---------------------------------------------------------------------------
+  # PYTHON EXTERNAL TASK WORKERS
+  # ---------------------------------------------------------------------------
+  python-workers:
+    build:
+      context: ./python-workers
+      dockerfile: Dockerfile
+    container_name: python-workers
+    
+    environment:
+      # Camunda Connection
+      CAMUNDA_URL: http://camunda:8080/engine-rest
+      CAMUNDA_USERNAME: ${CAMUNDA_ADMIN_USER:-admin}
+      CAMUNDA_PASSWORD: ${CAMUNDA_ADMIN_PASSWORD:-admin}
+      
+      # Worker Configuration
+      WORKER_ID: insurance-worker-01
+      LOCK_DURATION: "300000"
+      POLL_INTERVAL: "5"
+      MAX_TASKS: "5"
+      
+      # Email Configuration (disabled by default for safety)
+      EMAIL_ENABLED: "false"
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      EMAIL_FROM: ${EMAIL_FROM:-noreply@example.com}
+      MANAGER_EMAIL: ${MANAGER_EMAIL:-manager@example.com}
+    
+    depends_on:
+      camunda:
+        condition: service_healthy
+    
+    restart: unless-stopped
+    
+    networks:
+      - camunda-network
+
+networks:
+  camunda-network:
+    driver: bridge
