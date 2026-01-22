@@ -29,7 +29,7 @@
       <bpmn:incoming>Flow_1dwry0d</bpmn:incoming>
       <bpmn:outgoing>Flow_18pw6wq</bpmn:outgoing>
     </bpmn:callActivity>
-    <bpmn:businessRuleTask id="risk_rating_dmn" name="Determine Riskgroup" camunda:resultVariable="riskLevel" camunda:decisionRef="risk_rating_dmn" camunda:mapDecisionResult="singleEntry" camunda:decisionRefTenantId="">
+    <bpmn:businessRuleTask id="risk_rating_dmn" name="Determine Riskgroup" camunda:resultVariable="rating" camunda:decisionRef="risk_rating_dmn" camunda:mapDecisionResult="singleEntry" camunda:decisionRefTenantId="">
       <bpmn:incoming>Flow_0rqvoq5</bpmn:incoming>
       <bpmn:outgoing>Flow_133t1wd</bpmn:outgoing>
     </bpmn:businessRuleTask>
@@ -71,23 +71,23 @@
     <bpmn:sequenceFlow id="Flow_0jbzitx" sourceRef="Activity_0x4zhym" targetRef="Activity_1bnitip" />
     <bpmn:sequenceFlow id="Flow_1kcjudo" sourceRef="Activity_1bnitip" targetRef="Event_1v4o633" />
     <bpmn:sequenceFlow id="Flow_0v3fr6j" name="No" sourceRef="Gateway_0r6tos5" targetRef="Activity_09w6bed">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${accepted == "no"}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${accepted == false}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_012lagy" name="Red" sourceRef="Gateway_1q4fgbf" targetRef="Activity_09w6bed">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rating == "red"}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rating == "Red"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1h4xw7w" name="Yes" sourceRef="Gateway_0r6tos5" targetRef="Activity_0x4zhym">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${accepted == "yes"}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${accepted == true}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1473pth" name="Green" sourceRef="Gateway_1q4fgbf" targetRef="Activity_0x4zhym">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rating == "green"}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rating == "Green"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_17l63br" sourceRef="Activity_1u566xw" targetRef="Gateway_0r6tos5" />
     <bpmn:sequenceFlow id="Flow_1u7t079" sourceRef="Activity_0ehak7s" targetRef="Event_11v4h2s" />
     <bpmn:sequenceFlow id="Flow_0fybl6b" sourceRef="Activity_1u566xw" targetRef="Activity_0ehak7s" />
     <bpmn:sequenceFlow id="Flow_18pw6wq" sourceRef="document_request_process" targetRef="Activity_1u566xw" />
     <bpmn:sequenceFlow id="Flow_0r2l7ob" name="Yellow" sourceRef="Gateway_1q4fgbf" targetRef="Activity_1u566xw">
-      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rating == "yellow"}</bpmn:conditionExpression>
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${rating == "Yellow"}</bpmn:conditionExpression>
     </bpmn:sequenceFlow>
     <bpmn:sequenceFlow id="Flow_1dwry0d" sourceRef="Event_02qtdl6" targetRef="document_request_process" />
     <bpmn:sequenceFlow id="Flow_0rqvoq5" sourceRef="Event_0kxje99" targetRef="risk_rating_dmn" />
@@ -121,9 +121,6 @@
         <bpmndi:BPMNLabel>
           <dc:Bounds x="974" y="293" width="52" height="14" />
         </bpmndi:BPMNLabel>
-      </bpmndi:BPMNShape>
-      <bpmndi:BPMNShape id="BPMNShape_1t4rmgc" bpmnElement="Event_11v4h2s">
-        <dc:Bounds x="792" y="172" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BPMNShape_1ogdws8" bpmnElement="Activity_1u566xw">
         <dc:Bounds x="590" y="260" width="100" height="80" />
@@ -164,7 +161,10 @@
         <dc:Bounds x="890" y="510" width="100" height="80" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="Activity_08dmbnd_di" bpmnElement="Activity_0ehak7s">
-        <dc:Bounds x="590" y="150" width="100" height="80" />
+        <dc:Bounds x="590" y="140" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="BPMNShape_1t4rmgc" bpmnElement="Event_11v4h2s">
+        <dc:Bounds x="792" y="162" width="36" height="36" />
       </bpmndi:BPMNShape>
       <bpmndi:BPMNShape id="BPMNShape_1rv0zdl" bpmnElement="Event_02qtdl6">
         <dc:Bounds x="672" y="322" width="36" height="36" />
@@ -228,12 +228,12 @@
         <di:waypoint x="915" y="300" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="BPMNEdge_1quqpq9" bpmnElement="Flow_1u7t079">
-        <di:waypoint x="690" y="190" />
-        <di:waypoint x="792" y="190" />
+        <di:waypoint x="690" y="180" />
+        <di:waypoint x="792" y="180" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="BPMNEdge_1gng3wq" bpmnElement="Flow_0fybl6b">
         <di:waypoint x="640" y="260" />
-        <di:waypoint x="640" y="230" />
+        <di:waypoint x="640" y="220" />
       </bpmndi:BPMNEdge>
       <bpmndi:BPMNEdge id="BPMNEdge_1gueiyt" bpmnElement="Flow_18pw6wq">
         <di:waypoint x="700" y="450" />
